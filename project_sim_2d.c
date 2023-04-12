@@ -100,7 +100,7 @@ int main(int argc, char **argv){
 	long double widthDomain;		//width of total thing simulating (um)
 	long double lengthDomain; 		//length of total thing simulating (um)
 	long double w_B;				//width of the bus waveguide (um)
-	long double s;					//separating between the two waveguides (um)
+	long double s;					//separation between the two waveguides (um)
 	long double w;					//width of the output waveguide (um)
 	long double taper_start;		//top of the taper for the output waveguide (um)
 	long double taper_end;			//bottom point of the taper for the output waveguide (um)
