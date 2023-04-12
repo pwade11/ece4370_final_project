@@ -194,7 +194,7 @@ int main(int argc, char **argv){
 				alpha = tmp_val;
 			else
 				printf("Extra line in source file\n Data = %s\n Aborting \n", line);
-
+				exit(0);
 			vals_ind++;
 		}
 		fclose(fp_in);
