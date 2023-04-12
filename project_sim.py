@@ -93,7 +93,7 @@ tip_width = .15*um
 
 
 
-def look_at_effective_index(nCore, nCladding, k0, t = 500e-9):
+def look_at_effective_index(nCore, nCladding, k0, t = 500e-9, plot=False):
 	#from vertical stack
 	#cladding effective = nCladding since it is fully enclosed in same mat
 	#core effective:
@@ -105,18 +105,19 @@ def look_at_effective_index(nCore, nCladding, k0, t = 500e-9):
 	rhs_te = h*2*gamma/(h**2 -gamma**2)
 	#for tm:
 	rhs_tm = (h/(nCore**2))*(2*gamma/(nCladding**2))/((h/(nCore**2))**2  - (gamma/(nCladding**2))**2)
-	plt.scatter(beta/k0, lhs)
-	plt.scatter(beta/k0, rhs_te)
-	plt.scatter(beta/k0, rhs_tm)
-	plt.ylim(-40,40)
-	plt.show()
+	if(plot):
+		plt.scatter(beta/k0, lhs)
+		plt.scatter(beta/k0, rhs_te)
+		plt.scatter(beta/k0, rhs_tm)
+		plt.ylim(-40,40)
+		plt.show()
 
-	plt.scatter(beta/k0, np.abs(rhs_te-lhs))
-	plt.scatter(beta/k0, np.abs(rhs_tm-lhs))
-	plt.ylim(-1, 10)
-	print(beta[np.argmin(np.abs(rhs_te-lhs))]/k0)
-	print(beta[np.argmin(np.abs(rhs_tm-lhs))]/k0)
-	plt.show()
+		plt.scatter(beta/k0, np.abs(rhs_te-lhs))
+		plt.scatter(beta/k0, np.abs(rhs_tm-lhs))
+		plt.ylim(-1, 10)
+		print(beta[np.argmin(np.abs(rhs_te-lhs))]/k0)
+		print(beta[np.argmin(np.abs(rhs_tm-lhs))]/k0)
+		plt.show()
 	
 	n_eff_TE = beta[np.argmin(np.abs(rhs_te-lhs))]/k0
 	n_eff_TM = beta[np.argmin(np.abs(rhs_tm-lhs))]/k0
@@ -455,6 +456,7 @@ z = np.linspace(0, deltaz*Nzpts, Nzpts+1, dtype=complex)
 n_eff_TE, n_eff_TM = look_at_effective_index(nCore, nCladding, k0)
 #look_at_possible_confined_modes(k0, n_eff_TE, nCladding, BusWidth)
 #look_at_possible_confined_modes(k0, n_eff_TM, nCladding, BusWidth)
+print(n_eff_TE)
 nCore = n_eff_TE
 
 #nCore = n_eff_TE
