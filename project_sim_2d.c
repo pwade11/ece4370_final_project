@@ -75,6 +75,69 @@ void generate_n_grid(long double complex nCore, long double complex ** n, int N,
 
 }
 
+void save_data(int argc, char **argv, long double complex ** allFeild, int Nzpts, int N){
+	//changing writes based on this:
+	//https://stackoverflow.com/questions/41210227/fastest-way-to-write-integer-to-file-in-c
+	
+	FILE * fp;
+	if(argc == 3)
+		fp = fopen(argv[2],"w");
+	else
+		fp = fopen("project_sim_output.csv","w");
+	if(fp == NULL){
+		printf("Could not open the output file\nAborting\n");
+		exit(0);
+	}
+
+	char file_buffer[CHUNK_SIZE + 64] ;
+	int buffer_count = 0 ;
+	//int num_write = 0;
+
+	for (int m = 0; m < Nzpts + 1; m ++){
+		for (int j =0; j < N; j++){
+			//buffer_count += sprintf( &file_buffer[buffer_count], "%.*Le", DECIMAL_DIG, (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
+			buffer_count += sprintf( &file_buffer[buffer_count], "%0.14Lf", (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
+			//the commented out one above specifies printing at full precision, but it its not necessary and this is much faster
+			//printf("%d\n",buffer_count);
+			
+
+			if(j != N-1){
+				//fprintf(fp,	",");
+				buffer_count += sprintf( &file_buffer[buffer_count], ",");
+			}
+
+			// if the chunk is big enough, write it.
+			if( buffer_count >= CHUNK_SIZE )
+			{
+				fwrite( file_buffer, CHUNK_SIZE, 1, fp ) ;
+				buffer_count -= CHUNK_SIZE ;
+				memcpy( file_buffer, &file_buffer[CHUNK_SIZE], buffer_count ) ;
+				//num_write ++;
+			}
+		}
+		if(m != Nzpts){
+			buffer_count += sprintf( &file_buffer[buffer_count], "\n");
+		}
+		if( buffer_count >= CHUNK_SIZE )
+		{
+			fwrite( file_buffer, CHUNK_SIZE, 1, fp ) ;
+			buffer_count -= CHUNK_SIZE ;
+			memcpy( file_buffer, &file_buffer[CHUNK_SIZE], buffer_count ) ;
+			//num_write ++;
+		}
+	}
+
+	// Write remainder
+	if( buffer_count > 0 )
+	{
+		fwrite( file_buffer, 1, buffer_count, fp ) ; 
+		//num_write++;   
+	}
+	
+	fclose(fp);
+}
+
+
 int main(int argc, char **argv){
 	
 	if((argc != 1) && (argc != 2) && (argc != 3)){
@@ -112,7 +175,6 @@ int main(int argc, char **argv){
 	long double del_x;				//discritization in x (um)
 	long double del_z;				//discritization in z (um)
 	long double alpha;				//mix between the two methods of simulation
-
 
 	if(argc == 1){
 		nCladding = 1.4446; //silicon dioxide at 1500 nm https://refractiveindex.info/?shelf=main&book=SiO2&page=Malitson
@@ -154,7 +216,6 @@ int main(int argc, char **argv){
 			tmp_char_ptr = strtok(NULL, " ");	//for some reason need to do this to get second element in the string
 			long double tmp_val = atof(tmp_char_ptr); //turn the rest of the line into a value
 			
-
 			//assign all the values
 			if(vals_ind == 0)
 				nCladding = tmp_val;
@@ -192,9 +253,10 @@ int main(int argc, char **argv){
 				del_z = tmp_val*1E-6;
 			else if(vals_ind == 17)
 				alpha = tmp_val;
-			else
+			else{
 				printf("Extra line in source file\n Data = %s\n Aborting \n", line);
 				exit(0);
+			}
 			vals_ind++;
 		}
 		fclose(fp_in);
@@ -263,9 +325,7 @@ int main(int argc, char **argv){
 		}
 		else{
 			kappa[i] = 0;
-		}
-
-		
+		}	
 	}
 
 
@@ -375,73 +435,7 @@ int main(int argc, char **argv){
 
 	clock_gettime(CLOCK_MONOTONIC, &end_processing);
 	
-
-
-	//changing writes based on this:
-	//https://stackoverflow.com/questions/41210227/fastest-way-to-write-integer-to-file-in-c
-	
-	FILE * fp;
-	if(argc == 3)
-		fp = fopen(argv[2],"w");
-	else
-		fp = fopen("project_sim_output.csv","w");
-	if(fp == NULL){
-		printf("Could not open the output file\nAborting\n");
-		exit(0);
-	}
-
-	char file_buffer[CHUNK_SIZE + 64] ;
-	int buffer_count = 0 ;
-	//int num_write = 0;
-
-	for (int m = 0; m < Nzpts + 1; m ++){
-		for (int j =0; j < N; j++){
-			//buffer_count += sprintf( &file_buffer[buffer_count], "%.*Le", DECIMAL_DIG, (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
-			buffer_count += sprintf( &file_buffer[buffer_count], "%0.14Lf", (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
-			//the commented out one above specifies printing at full precision, but it its not necessary and this is much faster
-			//printf("%d\n",buffer_count);
-			
-
-			if(j != N-1){
-				//fprintf(fp,	",");
-				buffer_count += sprintf( &file_buffer[buffer_count], ",");
-			}
-
-			// if the chunk is big enough, write it.
-			if( buffer_count >= CHUNK_SIZE )
-			{
-				fwrite( file_buffer, CHUNK_SIZE, 1, fp ) ;
-				buffer_count -= CHUNK_SIZE ;
-				memcpy( file_buffer, &file_buffer[CHUNK_SIZE], buffer_count ) ;
-				//num_write ++;
-			}
-		}
-		if(m != Nzpts){
-			buffer_count += sprintf( &file_buffer[buffer_count], "\n");
-		}
-		if( buffer_count >= CHUNK_SIZE )
-		{
-			fwrite( file_buffer, CHUNK_SIZE, 1, fp ) ;
-			buffer_count -= CHUNK_SIZE ;
-			memcpy( file_buffer, &file_buffer[CHUNK_SIZE], buffer_count ) ;
-			//num_write ++;
-		}
-	}
-
-	// Write remainder
-	if( buffer_count > 0 )
-	{
-		fwrite( file_buffer, 1, buffer_count, fp ) ; 
-		//num_write++;   
-	}
-	
-	fclose(fp);
-	
-
-
-
-
-
+	save_data(argc, argv, allFeild, Nzpts, N);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
 
@@ -494,10 +488,6 @@ int main(int argc, char **argv){
 
 
 }
-
-
-
-
 
 
 
