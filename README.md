@@ -28,7 +28,7 @@ An image showing how some of these parameters map onto the structure can be seen
 ![Image showing the index disbribution.](./structure_image.jpg)
 
 ## Using the simulation code
-After initialization, the code can be run either in python or c. C is much faster, but it requires using additional python code to plot the results afterwards. The python and C code have slight differences in the output results, but this appears to be due to some rounding in some built in functions, such as sin. 
+After initialization, the code can be run either in python or c. C is much faster, but it requires using additional python code to plot the results afterwards. The python and C code have slight differences in the output results, but this appears to be due to some rounding in some built in functions, such as in trigonometric functions. 
 
 ### Using the Python code
 The python code is good to immediatly visualize the structure, but it will be slow if you are trying to sweep over many different parameter variations. Simply call
