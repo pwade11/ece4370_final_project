@@ -37,8 +37,10 @@ The python code is good to immediatly visualize the structure, but it will be sl
 ### Using the C code
 This code is faster but more complicated to modify if you are not familiar with C. First you should compile the code for your machine. Compile with optimizations by running:
 `gcc -O3 -o project_sim_2d_c project_sim_2d.c`
+
 Next run the code, specifying a target parameter file and optionally a target output file. If no output file is specified it will save to "project_sim_output.csv"
 `./project_sim_2d_c <parameters file> <output file>`
+
 Next analyze the results by putting your output file as the "file" parameter in plot_from_c_output.py and calling:
 `python plot_from_c_output.py`
 
