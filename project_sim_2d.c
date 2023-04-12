@@ -15,45 +15,210 @@
 
 //gcc -O3 -o project_sim_2d_c project_sim_2d.c
 
-int main(void){
+void generate_n_grid(long double complex nCore, long double complex ** n, int N, int Nzpts, 
+	long double * x, long double * z, long double w_B, long double w, long double s, long double R, long double angle, 
+	long double taper_start, long double taper_end, long double turn_start, long double tip_width){
+
+	//assumes that n is aready created to be all nCladding before this function, since that can be done during initialization
+	//this likely could be substancially optimized, becasue doing a lot more comparisons than required, but just starting this way
+	//for now, since dont think will be a substancial time contributer
+
+	int bus_start_ind = N;
+	int bus_end_ind = 0;
+	for(int j = 0; j<N; j++){
+		if((x[j] >= -1*w_B/2) && j <bus_start_ind)
+			bus_start_ind = j;
+		if((x[j] <= w_B/2) && j > bus_end_ind)
+			bus_end_ind = j;
+	}
+
+	long double z0 = turn_start + (R+w)*sinl(angle);
+	long double x_start_angle = w_B/2 + s + R + w - cosl(angle)*(R+w);
+	for (int m = 0; m < Nzpts+1; m++){
+
+		for (int j =bus_start_ind; j <= bus_end_ind; j++){
+			n[m][j] = nCore;
+			//the bus waveguide
+		}
+
+		//know that the other waveguide stuff will start after the bus, and nothing above taper start
+		
+		if(z[m] >= taper_start){
+			for(int j = bus_end_ind; j < N; j++){
+				if(z[m] <= taper_end){
+					//taper part
+					if((x[j] >= w_B/2 + s) && (x[j] <= w_B/2 + s + tip_width))
+						n[m][j] = nCore;
+					if((x[j] >= w_B/2 + s + tip_width) && (x[j] <= w_B/2 + s + tip_width + (z[m] - taper_start)*(w - tip_width)/(taper_end - taper_start)))
+						n[m][j] = nCore;
+				}
+				else if(z[m] <= turn_start){
+					//straight part
+					if((x[j] >= w_B/2 + s) && (x[j] <= w_B/2 + s + w))
+						n[m][j] = nCore;
+				}
+				else if(z[m] <= turn_start + (R + w)*sinl(angle)){
+					//turn part
+					if((x[j] >= w_B/2 + s + R + w - sqrtl((R + w)*(R + w) - (z[m] - turn_start)*(z[m] - turn_start))) && (x[j] <= w_B/2 + s + R + w - sqrtl(R*R - (z[m] - turn_start)*(z[m] - turn_start))))
+						n[m][j] = nCore;
+				}
+				else{
+					//diagonal part
+					if((x[j] >= x_start_angle + tanl(angle)*(z[m] - z0)) && (x[j] <= x_start_angle + w + tanl(angle)*(z[m] - z0)))
+						n[m][j] = nCore;
+				}
+			}
+		}
+				
+	}
+	return;
+
+}
+
+int main(int argc, char **argv){
 	
+	if((argc != 1) && (argc != 2) && (argc != 3)){
+		printf("Usage project_sim_2d_c <input file (optional)> <output file(optional)>\n Aborting...\n");
+		exit(0);
+	}
 
-	int SecondWG = 0;
-
+	int save_n = 0; //if you want to dump the n data, only use this to check the file, will not optimize that saving 
 
 	struct timespec start_gen, start_processing, end_processing, end;
 	
 	clock_gettime(CLOCK_MONOTONIC, &start_gen);
-
-	long double lambd = 1.5*1E-6;
-	long double k0 = 2*M_PI/lambd;
-
-	long double complex nCladding = 1;
-	long double complex nCore = 1.1;
-
-	long double n_bar = (nCladding + nCore)/2;
-
-	long double inputWGLength = 100*1E-6;
-	long double inputWGWidth = 1.5*1E-6;
-	long double widthDomain = 15*1E-6;
-	long double lengthDomain = inputWGLength;
-
-	long double coupGap = 0.5*1E-6;
-	long double sig = 0.5*1.2*1E-6;
-
-
-	//long double del_z = 0.25*1E-6;
-	long double del_z = 0.01*1E-6;
-
-	int Nzpts = round(lengthDomain/del_z);
-
-	long double del_x = 0.01*1E-6;
-	//long double del_x_2 = del_x*del_x;
-	int N = round(widthDomain / del_x);	
 	
 
 
-	long double alpha = 0.5;
+	
+	
+	//All of the parameters that you may want to adjust, should adjust them in the file
+
+	long double complex nCladding;	//cladding index
+	long double complex nCore;		//core (effective) index
+	long double lambd;				//wavelength (um)
+	long double widthDomain;		//width of total thing simulating (um)
+	long double lengthDomain; 		//length of total thing simulating (um)
+	long double w_B;				//width of the bus waveguide (um)
+	long double s;					//separating between the two waveguides (um)
+	long double w;					//width of the output waveguide (um)
+	long double taper_start;		//top of the taper for the output waveguide (um)
+	long double taper_end;			//bottom point of the taper for the output waveguide (um)
+	long double turn_start;			//startpoint for where the output waveguide turns
+	long double R;					//radius of the curve (um)
+	long double angle;				//angle the output waveguide curves to (degrees)
+	long double tip_width;			//the width of the tip of the taper of the output waveguide (um)
+	long double sig;				//width of the initial amplitude distribution (um)
+	long double del_x;				//discritization in x (um)
+	long double del_z;				//discritization in z (um)
+	long double alpha;				//mix between the two methods of simulation
+
+
+	if(argc == 1){
+		nCladding = 1.4446; //silicon dioxide at 1500 nm https://refractiveindex.info/?shelf=main&book=SiO2&page=Malitson
+		nCore = 1.5927508350083501; //n effective from the python code, based on n = 1.747 for aluminum oxide at 1500 nm https://refractiveindex.info/?shelf=main&book=Al2O3&page=Malitson-o
+		lambd = 1.5*1E-6;
+		widthDomain = 15*1E-6;
+		lengthDomain = 100*1E-6; //inputWGLength;
+		w_B = 0.22*1E-6;
+		s = 0.5*1E-6;
+		w = 0.3*1E-6;
+		taper_start = lengthDomain/4;
+		taper_end = lengthDomain/2;
+		turn_start = 3*lengthDomain/4;
+		R = 100*1E-6;
+		angle = 10*M_PI/180;
+		tip_width = 0.15*1E-6;
+		sig = 0.4*1.2*1E-6;
+		del_x = 0.01*1E-6;
+		del_z = 0.1*1E-6;
+		alpha = 0.5;	
+	}
+	else{
+		//reading file based on https://stackoverflow.com/questions/3501338/c-read-file-line-by-line
+		FILE * fp_in;
+		char * line = NULL;
+		size_t len = 0;
+		ssize_t read;
+		fp_in = fopen(argv[1], "r");
+		if(fp_in == NULL){
+			printf("Could not read the input file\nAborting\n");
+			exit(0);
+		}
+
+		int vals_ind = 0;
+		while((read = getline(&line, &len, fp_in)) != -1){
+			//read gives the length of the line
+			//line is the data 
+			char * tmp_char_ptr = strtok(line, " "); //split the line based on a space
+			tmp_char_ptr = strtok(NULL, " ");	//for some reason need to do this to get second element in the string
+			long double tmp_val = atof(tmp_char_ptr); //turn the rest of the line into a value
+			
+
+			//assign all the values
+			if(vals_ind == 0)
+				nCladding = tmp_val;
+			else if(vals_ind == 1)
+				nCore = tmp_val;
+			else if(vals_ind == 2)
+				lambd = tmp_val*1E-6;
+			else if(vals_ind == 3)
+				widthDomain = tmp_val*1E-6;
+			else if(vals_ind == 4)
+				lengthDomain = tmp_val*1E-6;
+			else if(vals_ind == 5)
+				w_B = tmp_val*1E-6;
+			else if(vals_ind == 6)
+				s = tmp_val*1E-6;
+			else if(vals_ind == 7)
+				w = tmp_val*1E-6;
+			else if(vals_ind == 8)
+				taper_start = tmp_val*1E-6;
+			else if(vals_ind == 9)
+				taper_end = tmp_val*1E-6;
+			else if(vals_ind == 10)
+				turn_start = tmp_val*1E-6;
+			else if(vals_ind == 11)
+				R = tmp_val*1E-6;
+			else if(vals_ind == 12)
+				angle = tmp_val * (long double)M_PI/((long double)180);
+			else if(vals_ind == 13)
+				tip_width = tmp_val*1E-6;
+			else if(vals_ind == 14)
+				sig = tmp_val*1E-6;
+			else if(vals_ind == 15)
+				del_x = tmp_val*1E-6;
+			else if(vals_ind == 16)
+				del_z = tmp_val*1E-6;
+			else if(vals_ind == 17)
+				alpha = tmp_val;
+			else
+				printf("Extra line in source file\n Data = %s\n Aborting \n", line);
+
+			vals_ind++;
+		}
+		fclose(fp_in);
+		if(line)
+			free(line);
+	}
+
+
+	//long double del_z = 0.25*1E-6;
+	long double k0 = 2*M_PI/lambd;
+	long double n_bar = (nCladding + nCore)/2;
+
+	int Nzpts = round(lengthDomain/del_z);
+
+	
+	//long double del_x_2 = del_x*del_x;
+	int N = round(widthDomain / del_x);	
+
+	printf("\nN=%d\nNzpts=%d\nnCladding=%0.9Lf\nnCore=%0.9Lf\n", N, Nzpts, creall(nCladding), creall(nCore));
+	printf("lambd(um)=%0.9Lf\nwidthDomain(um)=%0.9Lf\nlengthDomain(um)=%0.9Lf\n", lambd*1E6,widthDomain*1E6,lengthDomain*1E6);
+	printf("w_B(um)=%0.9Lf\ns(um)=%0.9Lf\nw(um)=%0.9Lf\ntaper_start(um)=%0.9Lf\n",w_B*1E6,s*1E6,w*1E6,taper_start*1E6);
+	printf("taper_end(um)=%0.9Lf\nturn_start(um)=%0.9Lf\nR(um)=%0.9Lf\nangle(rad)=%0.9Lf\n",taper_end*1E6,turn_start*1E6,R*1E6,angle);
+	printf("tip_width(um)=%0.9Lf\nsig(um)=%0.9Lf\ndel_x(um)=%0.9Lf\ndel_z(um)=%0.9Lf\nalpha=%0.9Lf\n\n",tip_width*1E6,sig*1E6,del_x*1E6,del_z*1E6,alpha);
+
 
 	//all the 1d arrays
 	long double complex * u = (long double complex *) malloc (N * sizeof(long double complex));
@@ -62,39 +227,32 @@ int main(void){
 	long double complex * r = (long double complex *) malloc (N * sizeof(long double complex));
 	long double * x = (long double *) malloc (N * sizeof(long double));
 	long double complex * kappa = (long double complex *) malloc (N * sizeof(long double complex));
-
-	int min_core_ind = N;
-	int max_core_ind = 0;
-	int min_core_ind_2 = N;
-	int max_core_ind_2 = 0;
 	//linspace as well as a lot of allocation
 
 	long double widthAbsEdge = 3*1E-6;
 	long double kappa_max = -0.2;
 		
+
+	//all the 2d arrays
+	long double complex ** allFeild = (long double complex **) malloc((Nzpts + 1)*sizeof(long double complex *));
+	long double complex ** n = (long double complex **) malloc((Nzpts + 1)*sizeof(long double complex *));
+	long double * z = (long double *) malloc ((Nzpts + 1) * sizeof(long double));
+	long double z_step = del_z*((long double)Nzpts)/((long double)(Nzpts+1));
+
+	for (int m = 0; m < Nzpts+1; m++){
+		allFeild[m] = (long double complex *) malloc(N * sizeof(long double complex));
+		n[m] = (long double complex *) malloc(N * sizeof(long double complex));
+		z[m] = (long double) m*z_step;
+		for (int j =0; j < N; j++){
+			n[m][j] = nCladding;
+		}
+	}
 	
-	long double step = widthDomain/((long double)(N-1));
+	long double x_step = widthDomain/((long double)(N-1));
 	for(int i = 0; i <N; i++){
-		x[i] = -1*widthDomain/2 + ((long double)i*step);
+		x[i] = -1*widthDomain/2 + ((long double)i*x_step);
 		u[i] = expl(-1*(x[i]/sig)*(x[i]/sig));
-		
-		if((x[i] <= inputWGWidth/2) && (x[i] >= -1*inputWGWidth/2)){
-			//THIS ONLY DOES THE SINGLE WAVEGUIDE FOR NOW
-			if(i < min_core_ind){
-				min_core_ind = i;
-			}
-			if(i > max_core_ind){
-				max_core_ind = i;
-			}
-		}
-		if((x[i] <= (3*inputWGWidth/2 + coupGap)) && (x[i]>=(inputWGWidth/2 + coupGap))){
-			if(i < min_core_ind_2){
-				min_core_ind_2 = i;
-			}
-			if(i > max_core_ind_2){
-				max_core_ind_2 = i;
-			}
-		}
+		allFeild[0][i] = u[i];
 		if(x[i] < -1*widthDomain/2 + widthAbsEdge){
 			kappa[i] = ((widthDomain/2 - widthAbsEdge + x[i])/widthAbsEdge);
 			kappa[i] = kappa_max*kappa[i]*kappa[i]; //square self and mult kappa max
@@ -110,42 +268,30 @@ int main(void){
 		
 	}
 
-	//printf("%d, %d, \n", max_core_ind, min_core_ind);
 
-	//all the 2d arrays
-	long double complex ** allFeild = (long double complex **) malloc((Nzpts + 1)*sizeof(long double complex *));
-	long double complex ** n = (long double complex **) malloc((Nzpts + 1)*sizeof(long double complex *));
-	
+	generate_n_grid(nCore, n, N, Nzpts, x, z, w_B, w, s, R, angle, taper_start, taper_end, turn_start, tip_width);
 
-	for (int m = 0; m < Nzpts+1; m++){
-		allFeild[m] = (long double complex *) malloc(N * sizeof(long double complex));
-		n[m] = (long double complex *) malloc(N * sizeof(long double complex));
-		for (int j =0; j < N; j++){
-			if(j <= max_core_ind && j >= min_core_ind){
-				n[m][j] = nCore;
-			}
-			else{
-				if(SecondWG == 1 && j <= max_core_ind_2 && j >= min_core_ind_2){
-					n[m][j] = nCore;
-				}
-				else{
-					n[m][j] = nCladding;
+	if(save_n){
+		//output the N data to check that it is right
+		FILE * fp_n;
+		fp_n = fopen("project_sim_n.csv","w+");
+
+		
+		for (int m = 0; m < Nzpts + 1; m ++){
+			for (int j =0; j < N; j++){
+				//fprintf(fp, "%Lf",cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
+				fprintf(fp_n, "%0.7Lf", creall(n[m][j]));
+				if(j != N-1){
+					fprintf(fp_n,	",");
 				}
 			}
-			if(m ==0){
-				allFeild[m][j] = u[j];
+			if(m != Nzpts){
+				fprintf(fp_n,	"\n");
 			}
-			else{
-				allFeild[m][j] = 0;
-			}
-
-
-
 		}
+		fclose(fp_n);
 	}
 
-
-	
 
 	clock_gettime(CLOCK_MONOTONIC, &start_processing);
 
@@ -229,34 +375,20 @@ int main(void){
 
 	clock_gettime(CLOCK_MONOTONIC, &end_processing);
 	
-	
 
-	//output
-	/*
-	FILE * fp;
-	fp = fopen("project_sim_output.csv","w+");
-
-
-	for (int m = 0; m < Nzpts + 1; m ++){
-		for (int j =0; j < N; j++){
-			//fprintf(fp, "%Lf",cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
-			fprintf(fp, "%.*Le",DECIMAL_DIG, cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
-			if(j != N-1){
-				fprintf(fp,	",");
-			}
-		}
-		if(m != Nzpts){
-			fprintf(fp,	"\n");
-		}
-	}
-	fclose(fp);
-	*/
 
 	//changing writes based on this:
 	//https://stackoverflow.com/questions/41210227/fastest-way-to-write-integer-to-file-in-c
 	
 	FILE * fp;
-	fp = fopen("project_sim_output.csv","w");
+	if(argc == 3)
+		fp = fopen(argv[2],"w");
+	else
+		fp = fopen("project_sim_output.csv","w");
+	if(fp == NULL){
+		printf("Could not open the output file\nAborting\n");
+		exit(0);
+	}
 
 	char file_buffer[CHUNK_SIZE + 64] ;
 	int buffer_count = 0 ;
@@ -349,6 +481,7 @@ int main(void){
 	free(n);
 	free(r);
 	free(x);
+	free(z);
 	free(kappa);
 	free(b);
 	free(gamma);
