@@ -23,4 +23,4 @@ del_z: discritization in z (um)
 alpha: mix between the two methods of simulation
 
 An image showing how some of these parameters map onto the structure can be seen below. 0 x is in the middle, 0 z is the top edge. 
-![Image showing the index disbribution.] (/structure_image.jpg)
+![Image showing the index disbribution.] (./structure_image.jpg)
