@@ -356,8 +356,8 @@ plt.show()
 
 #compare with my c code output
 data = []
-#with open("project_sim_output.csv",'r') as f:
-with open("out2.csv",'r') as f:
+with open("project_sim_output.csv",'r') as f:
+	#with open("out2.csv",'r') as f:
 	for line in f:
 		data.append(np.array(line.split(',')).astype(np.float))
 data = np.array(data)

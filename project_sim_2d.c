@@ -72,7 +72,6 @@ void generate_n_grid(long double complex nCore, long double complex ** n, int N,
 				
 	}
 	return;
-
 }
 
 void save_data(int argc, char **argv, long double complex ** allFeild, int Nzpts, int N){
@@ -137,6 +136,206 @@ void save_data(int argc, char **argv, long double complex ** allFeild, int Nzpts
 	fclose(fp);
 }
 
+void solve_tridiag(int N, int m, long double complex * u, long double complex * gamma, long double complex a, long double complex * b, long double complex * r){
+	/*
+	long double complex beta = b[0];
+	u[0] = r[0] / beta;
+	for (int j =1; j<N; j++){
+		gamma[j] = a/beta;
+		beta = b[j] - a*gamma[j];
+		u[j] = (r[j] - a*u[j-1])/beta;
+	}
+
+	for (int j =0; j <N-1; j++){
+		int ktemp = N-j-2;
+		u[ktemp] = u[ktemp] - gamma[ktemp+1]*u[ktemp+1];
+		
+	}
+	*/
+	//try in form the first paper gave
+	//this way is substancially faster
+	u[0] = r[0] / b[0]; //equivalent to d1 <-- d1/b1 in literature I think
+	gamma[0] = a/b[0]; //eqivalent to their c1 part
+	long double complex temp_val; //r in the paper 
+	for (int j =1; j<N; j++){
+		temp_val = 1/(b[j] - a*gamma[j-1]);
+		u[j] = temp_val*(r[j] - a*u[j-1]);
+		gamma[j] = temp_val*a;
+
+	}
+
+	for (int j =0; j <N-1; j++){
+		int ktemp = N-j-2;
+		u[ktemp] = u[ktemp] - gamma[ktemp]*u[ktemp+1];
+		//allFeild[m+1][ktemp] = u[ktemp];
+		//printf("%d\n",ktemp);
+		
+	}
+}
+
+void read_input_file(int argc, char **argv, long double complex * nCladding, long double complex *nCore, 
+	long double * lambd, long double * widthDomain, long double * lengthDomain, long double * w_B, long double * s, 
+	long double * w, long double * taper_start, long double * taper_end, long double * turn_start, long double * R, 
+	long double * angle, long double * tip_width, long double * sig, long double * del_x, long double * del_z, 
+	long double * alpha){
+	//reading file based on https://stackoverflow.com/questions/3501338/c-read-file-line-by-line
+	FILE * fp_in;
+	char * line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	fp_in = fopen(argv[1], "r");
+	if(fp_in == NULL){
+		printf("Could not read the input file\nAborting\n");
+		exit(0);
+	}
+
+	int vals_ind = 0;
+	while((read = getline(&line, &len, fp_in)) != -1){
+		//read gives the length of the line
+		//line is the data 
+		char * tmp_char_ptr = strtok(line, " "); //split the line based on a space
+		tmp_char_ptr = strtok(NULL, " ");	//for some reason need to do this to get second element in the string
+		long double tmp_val = atof(tmp_char_ptr); //turn the rest of the line into a value
+		
+		//assign all the values
+		if(vals_ind == 0)
+			*nCladding = tmp_val;
+		else if(vals_ind == 1)
+			*nCore = tmp_val;
+		else if(vals_ind == 2)
+			*lambd = tmp_val*1E-6;
+		else if(vals_ind == 3)
+			*widthDomain = tmp_val*1E-6;
+		else if(vals_ind == 4)
+			*lengthDomain = tmp_val*1E-6;
+		else if(vals_ind == 5)
+			*w_B = tmp_val*1E-6;
+		else if(vals_ind == 6)
+			*s = tmp_val*1E-6;
+		else if(vals_ind == 7)
+			*w = tmp_val*1E-6;
+		else if(vals_ind == 8)
+			*taper_start = tmp_val*1E-6;
+		else if(vals_ind == 9)
+			*taper_end = tmp_val*1E-6;
+		else if(vals_ind == 10)
+			*turn_start = tmp_val*1E-6;
+		else if(vals_ind == 11)
+			*R = tmp_val*1E-6;
+		else if(vals_ind == 12)
+			*angle = tmp_val * (long double)M_PI/((long double)180);
+		else if(vals_ind == 13)
+			*tip_width = tmp_val*1E-6;
+		else if(vals_ind == 14)
+			*sig = tmp_val*1E-6;
+		else if(vals_ind == 15)
+			*del_x = tmp_val*1E-6;
+		else if(vals_ind == 16)
+			*del_z = tmp_val*1E-6;
+		else if(vals_ind == 17)
+			*alpha = tmp_val;
+		else{
+			printf("Extra line in source file\n Data = %s\n Aborting \n", line);
+			exit(0);
+		}
+		vals_ind++;
+	}
+	fclose(fp_in);
+	if(line)
+		free(line);
+}
+
+void save_n_data(int Nzpts, int N, long double complex ** n){
+	FILE * fp_n;
+	fp_n = fopen("project_sim_n.csv","w+");
+
+	
+	for (int m = 0; m < Nzpts + 1; m ++){
+		for (int j =0; j < N; j++){
+			//fprintf(fp, "%Lf",cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
+			fprintf(fp_n, "%0.7Lf", creall(n[m][j]));
+			if(j != N-1){
+				fprintf(fp_n,	",");
+			}
+		}
+		if(m != Nzpts){
+			fprintf(fp_n,	"\n");
+		}
+	}
+	fclose(fp_n);
+}
+
+void init_x_u_kappa(int N, long double widthDomain, long double sig, long double * x, long double complex * u, 
+	long double complex ** allFeild, long double widthAbsEdge, long double kappa_max, long double complex * kappa){
+	long double x_step = widthDomain/((long double)(N-1));
+	for(int i = 0; i <N; i++){
+		x[i] = -1*widthDomain/2 + ((long double)i*x_step);
+		u[i] = expl(-1*(x[i]/sig)*(x[i]/sig));
+		allFeild[0][i] = u[i];
+		if(x[i] < -1*widthDomain/2 + widthAbsEdge){
+			kappa[i] = ((widthDomain/2 - widthAbsEdge + x[i])/widthAbsEdge);
+			kappa[i] = kappa_max*kappa[i]*kappa[i]; //square self and mult kappa max
+		}
+		else if(x[i] > widthDomain/2 - widthAbsEdge){
+			kappa[i] = (x[i] - widthDomain/2 + widthAbsEdge)/widthAbsEdge;
+			kappa[i] = kappa_max*kappa[i]*kappa[i];
+		}
+		else{
+			kappa[i] = 0;
+		}	
+	}
+}
+
+void perform_beam_prop(int N, int Nzpts, long double alpha, long double del_x, long double k0, long double complex ** n, 
+	long double complex * kappa, long double n_bar, long double del_z, long double complex * u, long double complex * b,
+	long double complex * r, long double complex * gamma, long double complex ** allFeild){
+
+	//memoisation with the k0*k0*(n[m+1][0]*n[m+1][0] - kappa[0]*kappa[0] + 2*I*n[m+1][0]*kappa[0] - n_bar*n_bar) term
+	long double complex * next_nmj_sqr_term = (long double complex *) malloc (N * sizeof(long double complex));
+
+
+	long double complex a = -alpha/(del_x*del_x);
+
+
+	next_nmj_sqr_term[0] = k0*k0*(n[0][0]*n[0][0] - kappa[0]*kappa[0] + 2*I*n[0][0]*kappa[0] - n_bar*n_bar);
+	for (int j = 1; j < N-1; j++){
+		next_nmj_sqr_term[j] = k0*k0*(n[0][j]*n[0][j] - kappa[j]*kappa[j] + 2*I*n[0][j]*kappa[j] - n_bar*n_bar);
+	}
+	next_nmj_sqr_term[N-1] = k0*k0*(n[0][N-1]*n[0][N-1] - kappa[N-1]*kappa[N-1] + 2*I*n[0][N-1]*kappa[N-1] - n_bar*n_bar);
+
+	long double complex shared_r_b_term = 2*I*k0*n_bar/del_z;
+	long double complex later_part_of_r = -1*(2*(1-alpha)/(del_x*del_x)) + shared_r_b_term;
+	for (int m = 0; m < Nzpts; m ++){
+
+
+		r[0] = ((1-alpha)/(del_x*del_x)) * (0+ u[1]) + ((1 - alpha)*next_nmj_sqr_term[0] + later_part_of_r)*u[0];
+		next_nmj_sqr_term[0] = k0*k0*(n[m+1][0]*n[m+1][0] - kappa[0]*kappa[0] + 2*I*n[m+1][0]*kappa[0] - n_bar*n_bar);
+		b[0] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[0] + shared_r_b_term;
+
+		
+
+		for (int j = 1; j < N-1; j++){
+			
+			r[j] = ((1-alpha)/(del_x*del_x))*(u[j-1] + u[j+1]) + ((1 - alpha)*next_nmj_sqr_term[j] + later_part_of_r)*u[j];
+			next_nmj_sqr_term[j] = k0*k0*(n[m+1][j]*n[m+1][j] - kappa[j]*kappa[j] + 2*I*n[m+1][j]*kappa[j] - n_bar*n_bar);
+			b[j] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[j] + shared_r_b_term;
+			
+		}
+
+		r[N-1] = ((1-alpha)/(del_x*del_x))*(u[N-2] + 0) + ((1 - alpha)*next_nmj_sqr_term[N-1] + later_part_of_r)*u[N-1];
+		next_nmj_sqr_term[N-1] = k0*k0*(n[m+1][N-1]*n[m+1][N-1] - kappa[N-1]*kappa[N-1] + 2*I*n[m+1][N-1]*kappa[N-1] - n_bar*n_bar);
+		b[N-1] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[N-1] + shared_r_b_term;
+		
+		solve_tridiag(N, m, u, gamma, a, b, r);	
+
+		for (int j =0; j < N; j++){
+			allFeild[m+1][j] = u[j];
+		}
+
+	}
+
+	free(next_nmj_sqr_term);
+}
 
 int main(int argc, char **argv){
 	
@@ -149,11 +348,7 @@ int main(int argc, char **argv){
 
 	struct timespec start_gen, start_processing, end_processing, end;
 	
-	clock_gettime(CLOCK_MONOTONIC, &start_gen);
-	
-
-
-	
+	clock_gettime(CLOCK_MONOTONIC, &start_gen);	
 	
 	//All of the parameters that you may want to adjust, should adjust them in the file
 
@@ -197,73 +392,9 @@ int main(int argc, char **argv){
 		alpha = 0.5;	
 	}
 	else{
-		//reading file based on https://stackoverflow.com/questions/3501338/c-read-file-line-by-line
-		FILE * fp_in;
-		char * line = NULL;
-		size_t len = 0;
-		ssize_t read;
-		fp_in = fopen(argv[1], "r");
-		if(fp_in == NULL){
-			printf("Could not read the input file\nAborting\n");
-			exit(0);
-		}
-
-		int vals_ind = 0;
-		while((read = getline(&line, &len, fp_in)) != -1){
-			//read gives the length of the line
-			//line is the data 
-			char * tmp_char_ptr = strtok(line, " "); //split the line based on a space
-			tmp_char_ptr = strtok(NULL, " ");	//for some reason need to do this to get second element in the string
-			long double tmp_val = atof(tmp_char_ptr); //turn the rest of the line into a value
-			
-			//assign all the values
-			if(vals_ind == 0)
-				nCladding = tmp_val;
-			else if(vals_ind == 1)
-				nCore = tmp_val;
-			else if(vals_ind == 2)
-				lambd = tmp_val*1E-6;
-			else if(vals_ind == 3)
-				widthDomain = tmp_val*1E-6;
-			else if(vals_ind == 4)
-				lengthDomain = tmp_val*1E-6;
-			else if(vals_ind == 5)
-				w_B = tmp_val*1E-6;
-			else if(vals_ind == 6)
-				s = tmp_val*1E-6;
-			else if(vals_ind == 7)
-				w = tmp_val*1E-6;
-			else if(vals_ind == 8)
-				taper_start = tmp_val*1E-6;
-			else if(vals_ind == 9)
-				taper_end = tmp_val*1E-6;
-			else if(vals_ind == 10)
-				turn_start = tmp_val*1E-6;
-			else if(vals_ind == 11)
-				R = tmp_val*1E-6;
-			else if(vals_ind == 12)
-				angle = tmp_val * (long double)M_PI/((long double)180);
-			else if(vals_ind == 13)
-				tip_width = tmp_val*1E-6;
-			else if(vals_ind == 14)
-				sig = tmp_val*1E-6;
-			else if(vals_ind == 15)
-				del_x = tmp_val*1E-6;
-			else if(vals_ind == 16)
-				del_z = tmp_val*1E-6;
-			else if(vals_ind == 17)
-				alpha = tmp_val;
-			else{
-				printf("Extra line in source file\n Data = %s\n Aborting \n", line);
-				exit(0);
-			}
-			vals_ind++;
-		}
-		fclose(fp_in);
-		if(line)
-			free(line);
+		read_input_file(argc, argv, &nCladding, &nCore, &lambd, &widthDomain, &lengthDomain, &w_B, &s, &w, &taper_start, 
+			&taper_end, &turn_start, &R, &angle, &tip_width, &sig, &del_x, &del_z, &alpha);
 	}
-
 
 	//long double del_z = 0.25*1E-6;
 	long double k0 = 2*M_PI/lambd;
@@ -271,7 +402,6 @@ int main(int argc, char **argv){
 
 	int Nzpts = round(lengthDomain/del_z);
 
-	
 	//long double del_x_2 = del_x*del_x;
 	int N = round(widthDomain / del_x);	
 
@@ -280,7 +410,6 @@ int main(int argc, char **argv){
 	printf("w_B(um)=%0.9Lf\ns(um)=%0.9Lf\nw(um)=%0.9Lf\ntaper_start(um)=%0.9Lf\n",w_B*1E6,s*1E6,w*1E6,taper_start*1E6);
 	printf("taper_end(um)=%0.9Lf\nturn_start(um)=%0.9Lf\nR(um)=%0.9Lf\nangle(rad)=%0.9Lf\n",taper_end*1E6,turn_start*1E6,R*1E6,angle);
 	printf("tip_width(um)=%0.9Lf\nsig(um)=%0.9Lf\ndel_x(um)=%0.9Lf\ndel_z(um)=%0.9Lf\nalpha=%0.9Lf\n\n",tip_width*1E6,sig*1E6,del_x*1E6,del_z*1E6,alpha);
-
 
 	//all the 1d arrays
 	long double complex * u = (long double complex *) malloc (N * sizeof(long double complex));
@@ -310,160 +439,40 @@ int main(int argc, char **argv){
 		}
 	}
 	
-	long double x_step = widthDomain/((long double)(N-1));
-	for(int i = 0; i <N; i++){
-		x[i] = -1*widthDomain/2 + ((long double)i*x_step);
-		u[i] = expl(-1*(x[i]/sig)*(x[i]/sig));
-		allFeild[0][i] = u[i];
-		if(x[i] < -1*widthDomain/2 + widthAbsEdge){
-			kappa[i] = ((widthDomain/2 - widthAbsEdge + x[i])/widthAbsEdge);
-			kappa[i] = kappa_max*kappa[i]*kappa[i]; //square self and mult kappa max
-		}
-		else if(x[i] > widthDomain/2 - widthAbsEdge){
-			kappa[i] = (x[i] - widthDomain/2 + widthAbsEdge)/widthAbsEdge;
-			kappa[i] = kappa_max*kappa[i]*kappa[i];
-		}
-		else{
-			kappa[i] = 0;
-		}	
-	}
-
+	init_x_u_kappa(N, widthDomain, sig, x, u, allFeild, widthAbsEdge, kappa_max, kappa);
 
 	generate_n_grid(nCore, n, N, Nzpts, x, z, w_B, w, s, R, angle, taper_start, taper_end, turn_start, tip_width);
 
 	if(save_n){
 		//output the N data to check that it is right
-		FILE * fp_n;
-		fp_n = fopen("project_sim_n.csv","w+");
-
-		
-		for (int m = 0; m < Nzpts + 1; m ++){
-			for (int j =0; j < N; j++){
-				//fprintf(fp, "%Lf",cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
-				fprintf(fp_n, "%0.7Lf", creall(n[m][j]));
-				if(j != N-1){
-					fprintf(fp_n,	",");
-				}
-			}
-			if(m != Nzpts){
-				fprintf(fp_n,	"\n");
-			}
-		}
-		fclose(fp_n);
+		save_n_data(Nzpts, N, n);
 	}
-
 
 	clock_gettime(CLOCK_MONOTONIC, &start_processing);
 
-	//memoisation with the k0*k0*(n[m+1][0]*n[m+1][0] - kappa[0]*kappa[0] + 2*I*n[m+1][0]*kappa[0] - n_bar*n_bar) term
-	long double complex * next_nmj_sqr_term = (long double complex *) malloc (N * sizeof(long double complex));
-
-
-
-	long double complex a = -alpha/(del_x*del_x);
-
-
-	next_nmj_sqr_term[0] = k0*k0*(n[0][0]*n[0][0] - kappa[0]*kappa[0] + 2*I*n[0][0]*kappa[0] - n_bar*n_bar);
-	for (int j = 1; j < N-1; j++){
-		next_nmj_sqr_term[j] = k0*k0*(n[0][j]*n[0][j] - kappa[j]*kappa[j] + 2*I*n[0][j]*kappa[j] - n_bar*n_bar);
-	}
-	next_nmj_sqr_term[N-1] = k0*k0*(n[0][N-1]*n[0][N-1] - kappa[N-1]*kappa[N-1] + 2*I*n[0][N-1]*kappa[N-1] - n_bar*n_bar);
-
-	long double complex shared_r_b_term = 2*I*k0*n_bar/del_z;
-	long double complex later_part_of_r = -1*(2*(1-alpha)/(del_x*del_x)) + shared_r_b_term;
-	for (int m = 0; m < Nzpts; m ++){
-
-
-		r[0] = ((1-alpha)/(del_x*del_x)) * (0+ u[1]) + ((1 - alpha)*next_nmj_sqr_term[0] + later_part_of_r)*u[0];
-		next_nmj_sqr_term[0] = k0*k0*(n[m+1][0]*n[m+1][0] - kappa[0]*kappa[0] + 2*I*n[m+1][0]*kappa[0] - n_bar*n_bar);
-		b[0] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[0] + shared_r_b_term;
-
-		
-
-		for (int j = 1; j < N-1; j++){
-			
-			r[j] = ((1-alpha)/(del_x*del_x))*(u[j-1] + u[j+1]) + ((1 - alpha)*next_nmj_sqr_term[j] + later_part_of_r)*u[j];
-			next_nmj_sqr_term[j] = k0*k0*(n[m+1][j]*n[m+1][j] - kappa[j]*kappa[j] + 2*I*n[m+1][j]*kappa[j] - n_bar*n_bar);
-			b[j] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[j] + shared_r_b_term;
-			
-		}
-
-		r[N-1] = ((1-alpha)/(del_x*del_x))*(u[N-2] + 0) + ((1 - alpha)*next_nmj_sqr_term[N-1] + later_part_of_r)*u[N-1];
-		next_nmj_sqr_term[N-1] = k0*k0*(n[m+1][N-1]*n[m+1][N-1] - kappa[N-1]*kappa[N-1] + 2*I*n[m+1][N-1]*kappa[N-1] - n_bar*n_bar);
-		b[N-1] = (2*alpha/(del_x*del_x)) - alpha*next_nmj_sqr_term[N-1] + shared_r_b_term;
-		
-		/*
-		long double complex beta = b[0];
-		u[0] = r[0] / beta;
-		for (int j =1; j<N; j++){
-			gamma[j] = a/beta;
-			beta = b[j] - a*gamma[j];
-			u[j] = (r[j] - a*u[j-1])/beta;
-		}
-
-		for (int j =0; j <N-1; j++){
-			int ktemp = N-j-2;
-			u[ktemp] = u[ktemp] - gamma[ktemp+1]*u[ktemp+1];
-			
-		}
-		*/
-		//try in form the first paper gave
-		//this way is substancially faster
-		u[0] = r[0] / b[0]; //equivalent to d1 <-- d1/b1 in literature I think
-		gamma[0] = a/b[0]; //eqivalent to their c1 part
-		long double complex temp_val; //r in the paper 
-		for (int j =1; j<N; j++){
-			temp_val = 1/(b[j] - a*gamma[j-1]);
-			u[j] = temp_val*(r[j] - a*u[j-1]);
-			gamma[j] = temp_val*a;
-
-		}
-
-		for (int j =0; j <N-1; j++){
-			int ktemp = N-j-2;
-			u[ktemp] = u[ktemp] - gamma[ktemp]*u[ktemp+1];
-			//allFeild[m+1][ktemp] = u[ktemp];
-			//printf("%d\n",ktemp);
-			
-		}
-		for (int j =0; j < N; j++){
-			allFeild[m+1][j] = u[j];
-		}
-	}
-
-	free(next_nmj_sqr_term);
+	perform_beam_prop(N, Nzpts, alpha, del_x, k0, n, kappa, n_bar, del_z, u, b, r, gamma, allFeild);
 
 	clock_gettime(CLOCK_MONOTONIC, &end_processing);
 	
 	save_data(argc, argv, allFeild, Nzpts, N);
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
-
 	
 	double time_from_init = BILLION *(end.tv_sec - start_gen.tv_sec) +(end.tv_nsec - start_gen.tv_nsec);
 	time_from_init = time_from_init / BILLION;
-
 	printf("Elapsed time from init: %lf seconds\n", time_from_init);
 
 	double time_from_proc = BILLION *(end.tv_sec - start_processing.tv_sec) +(end.tv_nsec - start_processing.tv_nsec);
 	time_from_proc = time_from_proc / BILLION;
-
-	printf("Elapsed time from processing: %lf seconds\n", time_from_proc);
-	
-
+	printf("Elapsed time from processing: %lf seconds\n", time_from_proc);	
 
 	double time_proc = BILLION *(end_processing.tv_sec - start_processing.tv_sec) +(end_processing.tv_nsec - start_processing.tv_nsec);
 	time_proc = time_proc / BILLION;
 	printf("Elapsed time processing: %lf seconds\n", time_proc);
-	//printf("%lf\n", time_proc);
 
 	double time_saving = BILLION *(end.tv_sec - end_processing.tv_sec) +(end.tv_nsec - end_processing.tv_nsec);
 	time_saving = time_saving / BILLION;
 	printf("Elapsed time saving: %lf seconds\n", time_saving);
-
-
-
-	//printf("num write = %d\n",num_write);
 
 
 	for (int m = 0; m < Nzpts + 1; m ++){
@@ -480,11 +489,6 @@ int main(int argc, char **argv){
 	free(b);
 	free(gamma);
 	free(u);
-
-
-	//printf("%lu\n", sizeof(long double complex));
-	//printf("%d\n", N);
-	//printf("%d\n", Nzpts+1);
 
 
 }
