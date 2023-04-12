@@ -17,81 +17,125 @@ i = 1j
 #Parameters of the simulation
 
 #Free space wavelength
-lambd = 1.5*um
-k0 = 2*np.pi/lambd
+#lambd = 1.5*um
+
 
 #Indices of refraction
 
 #nCladding = 1
 #nCore = 1.1
 #NOT SURE WHAT TO USE SINCE THESE ARE NOT THE Neff WE WOULD NEED, BUT PUT THESE HERE FOR NOW, ASK PROF
-nCladding = 1.4446 #silicon dioxide at 1500 nm https://refractiveindex.info/?shelf=main&book=SiO2&page=Malitson
-nCore =  1.747	#aluminum oxide at 1500 nm https://refractiveindex.info/?shelf=main&book=Al2O3&page=Malitson-o
-
-nBar = (nCladding + nCore)/2
+#nCladding = 1.4446 #silicon dioxide at 1500 nm https://refractiveindex.info/?shelf=main&book=SiO2&page=Malitson
+#nCore =  1.747	#aluminum oxide at 1500 nm https://refractiveindex.info/?shelf=main&book=Al2O3&page=Malitson-o
 
 #Length of waveguide (z-direction)
-inputWGLength = 100*um #400*um;
+#inputWGLength = 100*um #400*um;
 
 #Width of the domain (x-direction)
-widthDomain = 15*um
+#widthDomain = 15*um
 #Length of simulation domain (z-direction)
-lengthDomain = inputWGLength
+#lengthDomain = inputWGLength
 
 #Width of bus waveguide (x-direction)
-BusWidth = 0.22*um
+#BusWidth = 0.22*um
 #BusWidth = 1.5*um
 #BusWidth = 0.6*um
 
 #gap between waveguides: 
 #waveguide_separation = 0.2*um
 #waveguide_separation = 0.125*um
-waveguide_separation = 0.5*um
+#waveguide_separation = 0.5*um
 #waveguide_separation = 1*um
 #waveguide_separation = 1.5*um	#this so far the best for high transfer, but probably depends on the length set up
 #waveguide_separation = 4.5*um	#this has like 0 couplign at all 
 
 
 #width of the output waveguide
-output_width = 0.3*um
+#output_width = 0.3*um
 #output_width = 1.9*um
 #output_width = 1*um
 
 #end point of the output waveguide taper (z)
-taper_end = inputWGLength/2
+#taper_end = inputWGLength/2
 #taper_end =0 
 #start point of the taper (z)
-taper_start = inputWGLength/4
+#taper_start = inputWGLength/4
 #taper_start =0 
 
 #Width of initial Gaussian
 #sig = .5*1.2*um
-sig = 0.4*1.2*um
+#sig = 0.4*1.2*um
 #sig = 1.2*BusWidth/3 #keep it same ratio of bus width as the example
 
 
 #Discretization in z-direction
 #deltaz = .25*um
 #need to decrease for the angled one to make sense
-deltaz = .1*um
+#deltaz = .1*um
 
 #Discretization in x-direction
-deltax = 0.01 * um
+#deltax = 0.01 * um
 #deltax = 0.001 * um
 
 
 #where to start angling away (relative to the tip start)
-angle_away_start = 3*inputWGLength/4
+#angle_away_start = 3*inputWGLength/4
 #angle to go at
-angle_away_angle = 10*np.pi/180
+#angle_away_angle = 10*np.pi/180
 
-radius = 100*um
-turn_angle = 10*np.pi/180
-turn_start = 3*inputWGLength/4
+#radius = 100*um
+#turn_angle = 10*np.pi/180
+#turn_start = 3*inputWGLength/4
 
-tip_width = .15*um
+#tip_width = .15*um
 
 
+#load parameters from the file
+with open("setup_parameters.txt", "r") as f:
+	vals_ind = 0
+	for line in f:
+		tmp_val = np.float(line.split(' ')[-1])
+		if(vals_ind == 0):
+			nCladding = tmp_val
+		elif(vals_ind == 1):
+			nCore = tmp_val
+		elif(vals_ind == 2):
+			lambd = tmp_val*1e-6
+		elif(vals_ind == 3):
+			widthDomain = tmp_val*1e-6;
+		elif(vals_ind == 4):
+			lengthDomain = tmp_val*1e-6
+		elif(vals_ind == 5):
+			BusWidth = tmp_val*1e-6
+		elif(vals_ind == 6):
+			waveguide_separation = tmp_val*1e-6
+		elif(vals_ind == 7):
+			output_width = tmp_val*1e-6
+		elif(vals_ind == 8):
+			taper_start = tmp_val*1e-6
+		elif(vals_ind == 9):
+			taper_end = tmp_val*1e-6
+		elif(vals_ind == 10):
+			turn_start = tmp_val*1e-6
+		elif(vals_ind == 11):
+			radius = tmp_val*1e-6
+		elif(vals_ind == 12):
+			turn_angle = tmp_val*np.pi/180
+		elif(vals_ind == 13):
+			tip_width = tmp_val*1e-6
+		elif(vals_ind == 14):
+			sig = tmp_val*1e-6
+		elif(vals_ind == 15):
+			deltax = tmp_val*1e-6
+		elif(vals_ind == 16):
+			deltaz = tmp_val*1e-6
+		elif(vals_ind == 17):
+			alpha = tmp_val
+		vals_ind += 1
+
+
+k0 = 2*np.pi/lambd
+nBar = (nCladding + nCore)/2
 
 def look_at_effective_index(nCore, nCladding, k0, t = 500e-9, plot=False):
 	#from vertical stack
@@ -452,12 +496,12 @@ z = np.linspace(0, deltaz*Nzpts, Nzpts+1, dtype=complex)
 #	core2inds = np.where((x<=(3*inputWGWidth/2 + coupGap)) & (x>=(inputWGWidth/2 + coupGap)))
 #	n_Input_WG[:, core2inds] = nCore
 
-
-n_eff_TE, n_eff_TM = look_at_effective_index(nCore, nCladding, k0)
+#USE THIS TO FIND THE EFFECTIVE INDEX OF THE CORE MATERIAL, BUT AFTERWARDS DONT ALWAYS RERUN
+#n_eff_TE, n_eff_TM = look_at_effective_index(nCore, nCladding, k0)
 #look_at_possible_confined_modes(k0, n_eff_TE, nCladding, BusWidth)
 #look_at_possible_confined_modes(k0, n_eff_TM, nCladding, BusWidth)
-print(n_eff_TE)
-nCore = n_eff_TE
+#print(n_eff_TE)
+#nCore = n_eff_TE
 
 #nCore = n_eff_TE
 
@@ -500,7 +544,7 @@ for j in range(0,N):
 
 #Adapted from Pedrola, "Beam Propagation Method for Design of Optical
 #Waveguide Devices" 
-alpha = 0.5
+#alpha = 0.5
 #Scheme Parameter; 0(1) means purely Forward (Backward)
 
 #Crank-Nicolson intermediate parameters (Pedrola, p. 36): 
