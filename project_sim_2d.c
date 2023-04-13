@@ -25,11 +25,17 @@ void generate_n_grid(long double complex nCore, long double complex ** n, int N,
 
 	int bus_start_ind = N;
 	int bus_end_ind = 0;
+	int coupler_start_ind = N; 
+	int coupler_end_ind = 0;
 	for(int j = 0; j<N; j++){
 		if((x[j] >= -1*w_B/2) && j <bus_start_ind)
 			bus_start_ind = j;
 		if((x[j] <= w_B/2) && j > bus_end_ind)
 			bus_end_ind = j;
+		if((x[j] >= w_B/2 + s) && j < coupler_start_ind)
+			coupler_start_ind = j;
+		if((x[j] <= w_B/2 + s + w) && j > coupler_end_ind)
+			coupler_end_ind = j;
 	}
 
 	long double z0 = turn_start + (R+w)*sinl(angle);
@@ -43,8 +49,8 @@ void generate_n_grid(long double complex nCore, long double complex ** n, int N,
 
 		//know that the other waveguide stuff will start after the bus, and nothing above taper start
 		
-		if(z[m] >= taper_start){
-			for(int j = bus_end_ind; j < N; j++){
+		if((z[m] >= taper_start) && (z[m] <= turn_start)){
+			for(int j = coupler_start_ind; j <= coupler_end_ind; j++){
 				if(z[m] <= taper_end){
 					//taper part
 					if((x[j] >= w_B/2 + s) && (x[j] <= w_B/2 + s + tip_width))
@@ -57,15 +63,25 @@ void generate_n_grid(long double complex nCore, long double complex ** n, int N,
 					if((x[j] >= w_B/2 + s) && (x[j] <= w_B/2 + s + w))
 						n[m][j] = nCore;
 				}
-				else if(z[m] <= turn_start + (R + w)*sinl(angle)){
+			}
+		}
+		else if(z[m] >= turn_start){
+			for(int j = coupler_start_ind; j < N; j++){	
+				if(z[m] <= turn_start + (R + w)*sinl(angle)){
 					//turn part
 					if((x[j] >= w_B/2 + s + R + w - sqrtl((R + w)*(R + w) - (z[m] - turn_start)*(z[m] - turn_start))) && (x[j] <= w_B/2 + s + R + w - sqrtl(R*R - (z[m] - turn_start)*(z[m] - turn_start))))
 						n[m][j] = nCore;
+					if(x[j] > w_B/2 + s + R + w - sqrtl(R*R - (z[m] - turn_start)*(z[m] - turn_start))){
+						j = N; //stop it early if can
+					}
 				}
 				else{
 					//diagonal part
 					if((x[j] >= x_start_angle + tanl(angle)*(z[m] - z0)) && (x[j] <= x_start_angle + w + tanl(angle)*(z[m] - z0)))
 						n[m][j] = nCore;
+					if(x[j] > x_start_angle + w + tanl(angle)*(z[m] - z0)){
+						j = N; //stop it early if can
+					}
 				}
 			}
 		}
