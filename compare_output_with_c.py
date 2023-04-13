@@ -17,6 +17,7 @@ i = 1j
 #Parameters of the simulation
 
 #Free space wavelength
+"""
 lambd = 1.5*um
 k0 = 2*np.pi/lambd
 
@@ -90,6 +91,55 @@ turn_angle = 10*np.pi/180
 turn_start = 3*inputWGLength/4
 
 tip_width = .15*um
+"""
+
+
+with open("setup_parameters.txt", "r") as f:
+	vals_ind = 0
+	for line in f:
+		tmp_val = np.float(line.split(' ')[-1])
+		if(vals_ind == 0):
+			nCladding = tmp_val
+		elif(vals_ind == 1):
+			nCore = tmp_val
+		elif(vals_ind == 2):
+			lambd = tmp_val*1e-6
+		elif(vals_ind == 3):
+			widthDomain = tmp_val*1e-6;
+		elif(vals_ind == 4):
+			lengthDomain = tmp_val*1e-6
+		elif(vals_ind == 5):
+			BusWidth = tmp_val*1e-6
+		elif(vals_ind == 6):
+			waveguide_separation = tmp_val*1e-6
+		elif(vals_ind == 7):
+			output_width = tmp_val*1e-6
+		elif(vals_ind == 8):
+			taper_start = tmp_val*1e-6
+		elif(vals_ind == 9):
+			taper_end = tmp_val*1e-6
+		elif(vals_ind == 10):
+			turn_start = tmp_val*1e-6
+		elif(vals_ind == 11):
+			radius = tmp_val*1e-6
+		elif(vals_ind == 12):
+			turn_angle = tmp_val*np.pi/180
+		elif(vals_ind == 13):
+			tip_width = tmp_val*1e-6
+		elif(vals_ind == 14):
+			sig = tmp_val*1e-6
+		elif(vals_ind == 15):
+			deltax = tmp_val*1e-6
+		elif(vals_ind == 16):
+			deltaz = tmp_val*1e-6
+		elif(vals_ind == 17):
+			alpha = tmp_val
+		vals_ind += 1
+
+
+k0 = 2*np.pi/lambd
+nBar = (nCladding + nCore)/2
+
 
 def look_at_effective_index(nCore, nCladding, k0, t = 500e-9, plot=False):
 	#from vertical stack
@@ -248,11 +298,11 @@ z = np.linspace(0, deltaz*Nzpts, Nzpts+1, dtype=complex)
 #	n_Input_WG[:, core2inds] = nCore
 
 
-n_eff_TE, n_eff_TM = look_at_effective_index(nCore, nCladding, k0)
+#n_eff_TE, n_eff_TM = look_at_effective_index(nCore, nCladding, k0)
 #look_at_possible_confined_modes(k0, n_eff_TE, nCladding, BusWidth)
 #look_at_possible_confined_modes(k0, n_eff_TM, nCladding, BusWidth)
 print(n_eff_TE)
-nCore = n_eff_TE
+#nCore = n_eff_TE
 
 #nCore = n_eff_TE
 
@@ -381,6 +431,52 @@ x_g, z_g = np.meshgrid(x, z)
 ax = plt.axes(projection='3d')
 ax.plot_wireframe(x_g, z_g, data - np.abs(allField)**2)
 plt.show()
+
+
+
+#look at the power at the input (down a bit so have time to settle in) vs output
+start_looking_ind = 50 #how far down from the start to begin analysis as our starting point
+bus_coreinds = np.where((x<=BusWidth/2) & (x>=-BusWidth/2))
+
+angle_away_start = turn_start + (radius + output_width)*np.sin(turn_angle)
+x_start = BusWidth/2 + waveguide_separation + radius + output_width - np.cos(turn_angle)*(radius + output_width)
+ang_ind = np.where((x >= x_start + np.tan(turn_angle)*(z[-1] - angle_away_start)) & (x <= x_start +np.tan(turn_angle)*(z[-1]-angle_away_start) + output_width))
+#this assumes the end is on the z axis, which may not always be the case, so need to look
+
+max_bus_start = np.max(data[start_looking_ind,bus_coreinds])
+print(max_bus_start)
+
+max_output_end = np.max(data[-1, ang_ind])
+print(max_output_end)
+
+max_bus_end = np.max(data[-1,bus_coreinds])
+print(max_bus_end)
+
+
+print("power transfer (dB) = " + str(10*np.log10(max_output_end/max_bus_start)))
+
+print("power out (dB) = " + str(10*np.log10(max_bus_end/max_bus_start)))
+
+
+
+max_bus_start = np.max((np.abs(allField)**2)[start_looking_ind,bus_coreinds])
+print(max_bus_start)
+
+max_output_end = np.max((np.abs(allField)**2)[-1, ang_ind])
+print(max_output_end)
+
+max_bus_end = np.max((np.abs(allField)**2)[-1,bus_coreinds])
+print(max_bus_end)
+
+
+print("power transfer (dB) = " + str(10*np.log10(max_output_end/max_bus_start)))
+
+print("power out (dB) = " + str(10*np.log10(max_bus_end/max_bus_start)))
+
+
+
+
+
 
 
 
