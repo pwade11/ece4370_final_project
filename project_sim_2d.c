@@ -10,7 +10,7 @@
 //#define CHUNK_SIZE 32768
 //#define CHUNK_SIZE 8192
 #define CHUNK_SIZE 16384
-
+#define SWEEP_MODE 1 //toggle it into a mode where only prints out the in and out powers, and takes the s parameter as input
 
 
 //gcc -O3 -o project_sim_2d_c project_sim_2d.c
@@ -97,9 +97,7 @@ void save_data(int argc, char **argv, long double complex ** allFeild, int Nzpts
 			//buffer_count += sprintf( &file_buffer[buffer_count], "%.*Le", DECIMAL_DIG, (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
 			buffer_count += sprintf( &file_buffer[buffer_count], "%0.14Lf", (long double) (allFeild[m][j]*conjl(allFeild[m][j])));
 			//the commented out one above specifies printing at full precision, but it its not necessary and this is much faster
-			//printf("%d\n",buffer_count);
 			
-
 			if(j != N-1){
 				//fprintf(fp,	",");
 				buffer_count += sprintf( &file_buffer[buffer_count], ",");
@@ -152,7 +150,9 @@ void solve_tridiag(int N, int m, long double complex * u, long double complex * 
 		
 	}
 	*/
-	//try in form the first paper gave
+	//try in form these papers give: 
+	//https://upcommons.upc.edu/bitstream/handle/2117/360430/TFM_SHARDOOL_KULKARNI.pdf?sequence=1&isAllowed=y
+	//https://www.sciencedirect.com/science/article/pii/S001046552030357X?via%3Dihub
 	//this way is substancially faster
 	u[0] = r[0] / b[0]; //equivalent to d1 <-- d1/b1 in literature I think
 	gamma[0] = a/b[0]; //eqivalent to their c1 part
@@ -337,11 +337,69 @@ void perform_beam_prop(int N, int Nzpts, long double alpha, long double del_x, l
 	free(next_nmj_sqr_term);
 }
 
+void find_max_in_and_out(int start_ind, long double complex ** allFeild, long double * x, long double * z, int N, int Nzpts,
+	long double w_B, long double s, long double R, long double w, long double angle, long double turn_start){
+	//this will be used for our evaluation of power transfer, and is ultimatly what we need
+	//start_ind = where start looking (where assume bus reach steady state)
+
+	//assumes the end happens on the z axis, which may not happen, need to make sure
+
+	long double bus_start_max = 0;
+	long double bus_end_max = 0;
+	long double output_end_max = 0;
+
+	long double x_start_angle = w_B/2 + s + R + w - cosl(angle)*(R+w);
+	long double z0 = turn_start + (R+w)*sinl(angle);
+	for(int j = 0; j<N; j++){
+		if((x[j] >= -1*w_B/2) && (x[j] <= w_B/2)){
+			long double calc_val_0 = (long double) (allFeild[start_ind][j]*conjl(allFeild[start_ind][j]));
+			long double calc_val_end = (long double) (allFeild[Nzpts][j]*conjl(allFeild[Nzpts][j]));
+			//the bus waveguide
+			if(calc_val_0 > bus_start_max){
+				bus_start_max = calc_val_0;
+			}
+			if(calc_val_end > bus_end_max){
+				bus_end_max = calc_val_end;
+			}
+		}
+		if((x[j] >= x_start_angle + tanl(angle)*(z[Nzpts] - z0)) && (x[j] <= x_start_angle + w + tanl(angle)*(z[Nzpts] - z0))){
+			long double calc_val_out_end = (long double) (allFeild[Nzpts][j]*conjl(allFeild[Nzpts][j]));
+			if(calc_val_out_end > output_end_max){
+				output_end_max = calc_val_out_end;
+			}
+		}
+	}
+	long double transfer_power = 10*log10l(output_end_max/bus_start_max);
+	long double through_power = 10*log10l(bus_end_max/bus_start_max);
+	if(SWEEP_MODE){
+		printf("%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf\n",s,bus_start_max,bus_end_max,output_end_max,through_power,transfer_power);
+	}
+	else{
+		printf("bus_start_max=%0.14Lf\n", bus_start_max);
+		printf("bus_end_max=%0.14Lf\n", bus_end_max);
+		printf("output_end_max=%0.14Lf\n", output_end_max);
+		printf("\n");
+		printf("through_power=%0.14Lf\n",through_power);
+		printf("transfer_power=%0.14Lf\n",transfer_power);
+		printf("\n");
+	}
+	return;
+}
+
 int main(int argc, char **argv){
 	
-	if((argc != 1) && (argc != 2) && (argc != 3)){
-		printf("Usage project_sim_2d_c <input file (optional)> <output file(optional)>\n Aborting...\n");
-		exit(0);
+
+	if(SWEEP_MODE){
+		if((argc != 3)){
+			printf("Usage project_sim_2d_c <input file> s(um)\n Aborting...\n");
+			exit(0);
+		}
+	}
+	else{
+		if((argc != 1) && (argc != 2) && (argc != 3)){
+			printf("Usage project_sim_2d_c <input file (optional)> <output file(optional)>\n Aborting...\n");
+			exit(0);
+		}
 	}
 
 	int save_n = 0; //if you want to dump the n data, only use this to check the file, will not optimize that saving 
@@ -371,7 +429,7 @@ int main(int argc, char **argv){
 	long double del_z;				//discritization in z (um)
 	long double alpha;				//mix between the two methods of simulation
 
-	if(argc == 1){
+	if(argc == 1 && !SWEEP_MODE){
 		nCladding = 1.4446; //silicon dioxide at 1500 nm https://refractiveindex.info/?shelf=main&book=SiO2&page=Malitson
 		nCore = 1.5927508350083501; //n effective from the python code, based on n = 1.747 for aluminum oxide at 1500 nm https://refractiveindex.info/?shelf=main&book=Al2O3&page=Malitson-o
 		lambd = 1.5*1E-6;
@@ -394,6 +452,11 @@ int main(int argc, char **argv){
 	else{
 		read_input_file(argc, argv, &nCladding, &nCore, &lambd, &widthDomain, &lengthDomain, &w_B, &s, &w, &taper_start, 
 			&taper_end, &turn_start, &R, &angle, &tip_width, &sig, &del_x, &del_z, &alpha);
+		if(SWEEP_MODE){
+			//set s param based on arg
+			s = (long double) atof(argv[2])*1E-6;
+		}
+
 	}
 
 	//long double del_z = 0.25*1E-6;
@@ -405,11 +468,13 @@ int main(int argc, char **argv){
 	//long double del_x_2 = del_x*del_x;
 	int N = round(widthDomain / del_x);	
 
-	printf("\nN=%d\nNzpts=%d\nnCladding=%0.9Lf\nnCore=%0.9Lf\n", N, Nzpts, creall(nCladding), creall(nCore));
-	printf("lambd(um)=%0.9Lf\nwidthDomain(um)=%0.9Lf\nlengthDomain(um)=%0.9Lf\n", lambd*1E6,widthDomain*1E6,lengthDomain*1E6);
-	printf("w_B(um)=%0.9Lf\ns(um)=%0.9Lf\nw(um)=%0.9Lf\ntaper_start(um)=%0.9Lf\n",w_B*1E6,s*1E6,w*1E6,taper_start*1E6);
-	printf("taper_end(um)=%0.9Lf\nturn_start(um)=%0.9Lf\nR(um)=%0.9Lf\nangle(rad)=%0.9Lf\n",taper_end*1E6,turn_start*1E6,R*1E6,angle);
-	printf("tip_width(um)=%0.9Lf\nsig(um)=%0.9Lf\ndel_x(um)=%0.9Lf\ndel_z(um)=%0.9Lf\nalpha=%0.9Lf\n\n",tip_width*1E6,sig*1E6,del_x*1E6,del_z*1E6,alpha);
+	if(!SWEEP_MODE){
+		printf("\nN=%d\nNzpts=%d\nnCladding=%0.9Lf\nnCore=%0.9Lf\n", N, Nzpts, creall(nCladding), creall(nCore));
+		printf("lambd(um)=%0.9Lf\nwidthDomain(um)=%0.9Lf\nlengthDomain(um)=%0.9Lf\n", lambd*1E6,widthDomain*1E6,lengthDomain*1E6);
+		printf("w_B(um)=%0.9Lf\ns(um)=%0.9Lf\nw(um)=%0.9Lf\ntaper_start(um)=%0.9Lf\n",w_B*1E6,s*1E6,w*1E6,taper_start*1E6);
+		printf("taper_end(um)=%0.9Lf\nturn_start(um)=%0.9Lf\nR(um)=%0.9Lf\nangle(rad)=%0.9Lf\n",taper_end*1E6,turn_start*1E6,R*1E6,angle);
+		printf("tip_width(um)=%0.9Lf\nsig(um)=%0.9Lf\ndel_x(um)=%0.9Lf\ndel_z(um)=%0.9Lf\nalpha=%0.9Lf\n\n",tip_width*1E6,sig*1E6,del_x*1E6,del_z*1E6,alpha);
+	}
 
 	//all the 1d arrays
 	long double complex * u = (long double complex *) malloc (N * sizeof(long double complex));
@@ -454,26 +519,32 @@ int main(int argc, char **argv){
 
 	clock_gettime(CLOCK_MONOTONIC, &end_processing);
 	
-	save_data(argc, argv, allFeild, Nzpts, N);
+	if(!SWEEP_MODE){
+		save_data(argc, argv, allFeild, Nzpts, N);
+	}
+
+	find_max_in_and_out(50, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start);
+
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	
-	double time_from_init = BILLION *(end.tv_sec - start_gen.tv_sec) +(end.tv_nsec - start_gen.tv_nsec);
-	time_from_init = time_from_init / BILLION;
-	printf("Elapsed time from init: %lf seconds\n", time_from_init);
+	if(!SWEEP_MODE){
+		double time_from_init = BILLION *(end.tv_sec - start_gen.tv_sec) +(end.tv_nsec - start_gen.tv_nsec);
+		time_from_init = time_from_init / BILLION;
+		printf("Elapsed time from init: %lf seconds\n", time_from_init);
 
-	double time_from_proc = BILLION *(end.tv_sec - start_processing.tv_sec) +(end.tv_nsec - start_processing.tv_nsec);
-	time_from_proc = time_from_proc / BILLION;
-	printf("Elapsed time from processing: %lf seconds\n", time_from_proc);	
+		double time_from_proc = BILLION *(end.tv_sec - start_processing.tv_sec) +(end.tv_nsec - start_processing.tv_nsec);
+		time_from_proc = time_from_proc / BILLION;
+		printf("Elapsed time from processing: %lf seconds\n", time_from_proc);	
 
-	double time_proc = BILLION *(end_processing.tv_sec - start_processing.tv_sec) +(end_processing.tv_nsec - start_processing.tv_nsec);
-	time_proc = time_proc / BILLION;
-	printf("Elapsed time processing: %lf seconds\n", time_proc);
+		double time_proc = BILLION *(end_processing.tv_sec - start_processing.tv_sec) +(end_processing.tv_nsec - start_processing.tv_nsec);
+		time_proc = time_proc / BILLION;
+		printf("Elapsed time processing: %lf seconds\n", time_proc);
 
-	double time_saving = BILLION *(end.tv_sec - end_processing.tv_sec) +(end.tv_nsec - end_processing.tv_nsec);
-	time_saving = time_saving / BILLION;
-	printf("Elapsed time saving: %lf seconds\n", time_saving);
-
+		double time_saving = BILLION *(end.tv_sec - end_processing.tv_sec) +(end.tv_nsec - end_processing.tv_nsec);
+		time_saving = time_saving / BILLION;
+		printf("Elapsed time saving: %lf seconds\n", time_saving);
+	}
 
 	for (int m = 0; m < Nzpts + 1; m ++){
 		free(allFeild[m]);
