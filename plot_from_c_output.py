@@ -140,5 +140,30 @@ plt.show()
 
 
 
+#look at the power at the input (down a bit so have time to settle in) vs output
+start_looking_ind = 50 #how far down from the start to begin analysis as our starting point
+bus_coreinds = np.where((x<=BusWidth/2) & (x>=-BusWidth/2))
+
+angle_away_start = turn_start + (radius + output_width)*np.sin(turn_angle)
+x_start = BusWidth/2 + waveguide_separation + radius + output_width - np.cos(turn_angle)*(radius + output_width)
+ang_ind = np.where((x >= x_start + np.tan(turn_angle)*(z[-1] - angle_away_start)) & (x <= x_start +np.tan(turn_angle)*(z[-1]-angle_away_start) + output_width))
+#this assumes the end is on the z axis, which may not always be the case, so need to look
+
+max_bus_start = np.max(data[start_looking_ind,bus_coreinds])
+print(max_bus_start)
+
+max_output_end = np.max(data[-1, ang_ind])
+print(max_output_end)
+
+max_bus_end = np.max(data[-1,bus_coreinds])
+print(max_bus_end)
+
+
+print("power transfer (dB) = " + str(10*np.log10(max_output_end/max_bus_start)))
+
+print("power out (dB) = " + str(10*np.log10(max_bus_end/max_bus_start)))
+
+
+
 
 
