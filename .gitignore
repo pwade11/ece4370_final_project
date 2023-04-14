@@ -4,3 +4,4 @@ project_sim_output.csv
 project_sim_2d_c
 project_sim_n.csv
 *.csv
+*.txt

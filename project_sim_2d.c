@@ -10,7 +10,7 @@
 //#define CHUNK_SIZE 32768
 //#define CHUNK_SIZE 8192
 #define CHUNK_SIZE 16384
-#define SWEEP_MODE 1 //toggle it into a mode where only prints out the in and out powers, and takes the s parameter as input
+#define SWEEP_MODE 0 //toggle it into a mode where only prints out the in and out powers, and takes the s parameter as input
 
 
 //gcc -O3 -o project_sim_2d_c project_sim_2d.c
@@ -354,7 +354,7 @@ void perform_beam_prop(int N, int Nzpts, long double alpha, long double del_x, l
 }
 
 void find_max_in_and_out(int start_ind, long double complex ** allFeild, long double * x, long double * z, int N, int Nzpts,
-	long double w_B, long double s, long double R, long double w, long double angle, long double turn_start){
+	long double w_B, long double s, long double R, long double w, long double angle, long double turn_start, long double lambd){
 	//this will be used for our evaluation of power transfer, and is ultimatly what we need
 	//start_ind = where start looking (where assume bus reach steady state)
 
@@ -388,7 +388,7 @@ void find_max_in_and_out(int start_ind, long double complex ** allFeild, long do
 	long double transfer_power = 10*log10l(output_end_max/bus_start_max);
 	long double through_power = 10*log10l(bus_end_max/bus_start_max);
 	if(SWEEP_MODE){
-		printf("%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf\n",s,bus_start_max,bus_end_max,output_end_max,through_power,transfer_power);
+		printf("%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf\n",s,lambd,bus_start_max,bus_end_max,output_end_max,through_power,transfer_power);
 	}
 	else{
 		printf("bus_start_max=%0.14Lf\n", bus_start_max);
@@ -406,8 +406,8 @@ int main(int argc, char **argv){
 	
 
 	if(SWEEP_MODE){
-		if((argc != 3)){
-			printf("Usage project_sim_2d_c <input file> s(um)\n Aborting...\n");
+		if((argc != 3) && (argc != 4)){
+			printf("Usage project_sim_2d_c <input file> s(um) lambda(um)(optional)\n Aborting...\n");
 			exit(0);
 		}
 	}
@@ -471,6 +471,8 @@ int main(int argc, char **argv){
 		if(SWEEP_MODE){
 			//set s param based on arg
 			s = (long double) atof(argv[2])*1E-6;
+			if(argc == 4)
+				lambd = (long double) atof(argv[3])*1E-6;
 		}
 
 	}
@@ -539,7 +541,7 @@ int main(int argc, char **argv){
 		save_data(argc, argv, allFeild, Nzpts, N);
 	}
 
-	find_max_in_and_out(50, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start);
+	find_max_in_and_out(50, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start, lambd);
 
 
 	clock_gettime(CLOCK_MONOTONIC, &end);
