@@ -353,6 +353,34 @@ void perform_beam_prop(int N, int Nzpts, long double alpha, long double del_x, l
 	free(next_nmj_sqr_term);
 }
 
+void integrate_around_in_and_outvoid(int start_ind, long double complex ** allFeild, long double * x, long double * z, int N, int Nzpts,
+	long double w_B, long double s, long double R, long double w, long double angle, long double turn_start, long double lambd,
+	long double * out_db, long double * bus_db){
+
+	//calc dist between the waveguides at the end
+	long double x_start_angle = w_B/2 + s + R + w - cosl(angle)*(R+w);
+	long double z0 = turn_start + (R+w)*sinl(angle);
+	long double dist_between = (x_start_angle + tanl(angle)*(z[Nzpts] - z0)) - w_B/2;
+	long double tot_around_bus_start = 0;
+	long double tot_around_bus_end = 0;
+	long double tot_around_out = 0;
+
+	for(int j = 0; j<N; j++){
+		if((x[j] >= -1*w_B/2 - dist_between/2) && (x[j] <= w_B/2 + dist_between/2)){
+			tot_around_bus_start += (long double) (allFeild[start_ind][j]*conjl(allFeild[start_ind][j]));
+			tot_around_bus_end += (long double) (allFeild[Nzpts][j]*conjl(allFeild[Nzpts][j]));
+		}
+		if((x[j] >= x_start_angle + tanl(angle)*(z[Nzpts] - z0) - dist_between/2) && (x[j] <= x_start_angle + w + tanl(angle)*(z[Nzpts] - z0) + dist_between/2)){
+			tot_around_out += (long double) (allFeild[Nzpts][j]*conjl(allFeild[Nzpts][j]));	
+		}
+	}
+
+	*out_db = 10*log10l(tot_around_out/tot_around_bus_start);
+	*bus_db = 10*log10l(tot_around_bus_end/tot_around_bus_start);
+	//printf("%0.14Lf,%0.14Lf\n", 10*log10l(tot_around_out/tot_around_bus_start),10*log10l(tot_around_bus_end/tot_around_bus_start));
+
+}
+
 void find_max_in_and_out(int start_ind, long double complex ** allFeild, long double * x, long double * z, int N, int Nzpts,
 	long double w_B, long double s, long double R, long double w, long double angle, long double turn_start, long double lambd){
 	//this will be used for our evaluation of power transfer, and is ultimatly what we need
@@ -385,10 +413,15 @@ void find_max_in_and_out(int start_ind, long double complex ** allFeild, long do
 			}
 		}
 	}
+
+	long double out_sum_db;
+	long double bus_sum_db;
+	integrate_around_in_and_outvoid(start_ind, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start, lambd, &out_sum_db, &bus_sum_db);
+
 	long double transfer_power = 10*log10l(output_end_max/bus_start_max);
 	long double through_power = 10*log10l(bus_end_max/bus_start_max);
 	if(SWEEP_MODE){
-		printf("%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf\n",s,lambd,bus_start_max,bus_end_max,output_end_max,through_power,transfer_power);
+		printf("%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf,%0.14Lf\n",s,lambd,bus_start_max,bus_end_max,output_end_max,through_power,transfer_power, bus_sum_db, out_sum_db);
 	}
 	else{
 		printf("bus_start_max=%0.14Lf\n", bus_start_max);
@@ -401,6 +434,8 @@ void find_max_in_and_out(int start_ind, long double complex ** allFeild, long do
 	}
 	return;
 }
+
+
 
 int main(int argc, char **argv){
 	
@@ -541,9 +576,8 @@ int main(int argc, char **argv){
 		save_data(argc, argv, allFeild, Nzpts, N);
 	}
 
-	find_max_in_and_out(50, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start, lambd);
-
-
+	//find_max_in_and_out(50, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start, lambd);
+	find_max_in_and_out(500, allFeild, x, z, N, Nzpts, w_B, s, R, w, angle, turn_start, lambd);
 	clock_gettime(CLOCK_MONOTONIC, &end);
 	
 	if(!SWEEP_MODE){
