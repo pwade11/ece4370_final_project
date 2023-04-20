@@ -15,7 +15,7 @@
 
 //gcc -O3 -o project_sim_2d_c project_sim_2d.c
 
-void generate_n_grid(double complex nCore, double complex ** n, int N, int Nzpts, 
+void generate_n_grid(double complex nCore, double ** n, int N, int Nzpts, 
 	double * x, double * z, double w_B, double w, double s, double R, double angle, 
 	double taper_start, double taper_end, double turn_start, double tip_width){
 
@@ -261,7 +261,7 @@ void read_input_file(int argc, char **argv, double complex * nCladding, double c
 		free(line);
 }
 
-void save_n_data(int Nzpts, int N, double complex ** n){
+void save_n_data(int Nzpts, int N, double ** n){
 	FILE * fp_n;
 	fp_n = fopen("project_sim_n.csv","w+");
 
@@ -269,7 +269,7 @@ void save_n_data(int Nzpts, int N, double complex ** n){
 	for (int m = 0; m < Nzpts + 1; m ++){
 		for (int j =0; j < N; j++){
 			//fprintf(fp, "%Lf",cabsl(allFeild[m][j])*cabsl(allFeild[m][j]));
-			fprintf(fp_n, "%0.7f", creal(n[m][j]));
+			fprintf(fp_n, "%0.7f", n[m][j]);
 			if(j != N-1){
 				fprintf(fp_n,	",");
 			}
@@ -282,7 +282,7 @@ void save_n_data(int Nzpts, int N, double complex ** n){
 }
 
 void init_x_u_kappa(int N, double widthDomain, double sig, double * x, double complex * u, 
-	double complex ** allFeild, double widthAbsEdge, double kappa_max, double complex * kappa){
+	double complex ** allFeild, double widthAbsEdge, double kappa_max, double * kappa){
 	double x_step = widthDomain/((double)(N-1));
 	for(int i = 0; i <N; i++){
 		x[i] = -1*widthDomain/2 + ((double)i*x_step);
@@ -302,8 +302,8 @@ void init_x_u_kappa(int N, double widthDomain, double sig, double * x, double co
 	}
 }
 
-void perform_beam_prop(int N, int Nzpts, double alpha, double del_x, double k0, double complex ** n, 
-	double complex * kappa, double n_bar, double del_z, double complex * u, double complex * b,
+void perform_beam_prop(int N, int Nzpts, double alpha, double del_x, double k0, double ** n, 
+	double * kappa, double n_bar, double del_z, double complex * u, double complex * b,
 	double complex * r, double complex * gamma, double complex ** allFeild){
 
 	//memoisation with the k0*k0*(n[m+1][0]*n[m+1][0] - kappa[0]*kappa[0] + 2*I*n[m+1][0]*kappa[0] - n_bar*n_bar) term
@@ -535,7 +535,7 @@ int main(int argc, char **argv){
 	double complex * gamma = (double complex *) malloc (N * sizeof(double complex));
 	double complex * r = (double complex *) malloc (N * sizeof(double complex));
 	double * x = (double *) malloc (N * sizeof(double));
-	double complex * kappa = (double complex *) malloc (N * sizeof(double complex));
+	double * kappa = (double *) malloc (N * sizeof(double));
 	//linspace as well as a lot of allocation
 
 	double widthAbsEdge = 3*1E-6;
@@ -544,13 +544,13 @@ int main(int argc, char **argv){
 
 	//all the 2d arrays
 	double complex ** allFeild = (double complex **) malloc((Nzpts + 1)*sizeof(double complex *));
-	double complex ** n = (double complex **) malloc((Nzpts + 1)*sizeof(double complex *));
+	double ** n = (double **) malloc((Nzpts + 1)*sizeof(double *));
 	double * z = (double *) malloc ((Nzpts + 1) * sizeof(double));
 	double z_step = del_z*((double)Nzpts)/((double)(Nzpts+1));
 
 	for (int m = 0; m < Nzpts+1; m++){
 		allFeild[m] = (double complex *) malloc(N * sizeof(double complex));
-		n[m] = (double complex *) malloc(N * sizeof(double complex));
+		n[m] = (double *) malloc(N * sizeof(double));
 		z[m] = (double) m*z_step;
 		for (int j =0; j < N; j++){
 			n[m][j] = nCladding;
@@ -598,6 +598,10 @@ int main(int argc, char **argv){
 		printf("Elapsed time saving: %lf seconds\n", time_saving);
 	}
 
+	double time_proc = BILLION *(end_processing.tv_sec - start_processing.tv_sec) +(end_processing.tv_nsec - start_processing.tv_nsec);
+	time_proc = time_proc / BILLION;
+	printf("Elapsed time processing: %lf seconds\n", time_proc);
+	
 	for (int m = 0; m < Nzpts + 1; m ++){
 		free(allFeild[m]);
 		free(n[m]);
