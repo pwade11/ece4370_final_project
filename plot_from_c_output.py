@@ -2,7 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt 
 
 #plot from the spec file and the c data
+#file = "project_sim_output_on.csv"
+#file = "project_sim_output_off.csv"
 file = "project_sim_output.csv"
+
 
 
 
@@ -125,23 +128,26 @@ with open(file,'r') as f:
 	for line in f:
 		data.append(np.array(line.split(',')).astype(np.float))
 data = np.array(data)
-plt.imshow(data, aspect=widthDomain/lengthDomain,extent=(np.min(x), np.max(x), np.max(z),np.min(z)))
+plt.imshow(data, aspect=widthDomain/lengthDomain,extent=(np.min(x)/1e-6, np.max(x)/1e-6, np.max(z)/1e-6,np.min(z)/1e-6))
+plt.colorbar()
+for i in range(len(border_line_bounds)):
+	plt.plot(np.array(border_line_bounds[i][0])/1e-6,np.array(border_line_bounds[i][1])/1e-6, c='k')
+plt.title("Intensity distribution")
+plt.ylabel("z ($\mu m$)")
+plt.xlabel("x ($\mu m$)")
+
+plt.show()
+
+
+start_looking_ind = 50 #how far down from the start to begin analysis as our starting point
+
+plt.imshow(data[start_looking_ind:], aspect=widthDomain/lengthDomain,extent=(np.min(x), np.max(x), np.max(z[start_looking_ind:]),np.min(z[start_looking_ind:])))
 plt.colorbar()
 for i in range(len(border_line_bounds)):
 	plt.plot(border_line_bounds[i][0],border_line_bounds[i][1], c='k')
 plt.show()
-
-plt.imshow(data[50:], aspect=widthDomain/lengthDomain,extent=(np.min(x), np.max(x), np.max(z[50:]),np.min(z[50:])))
-plt.colorbar()
-for i in range(len(border_line_bounds)):
-	plt.plot(border_line_bounds[i][0],border_line_bounds[i][1], c='k')
-plt.show()
-
-
-
 
 #look at the power at the input (down a bit so have time to settle in) vs output
-start_looking_ind = 50 #how far down from the start to begin analysis as our starting point
 bus_coreinds = np.where((x<=BusWidth/2) & (x>=-BusWidth/2))
 
 angle_away_start = turn_start + (radius + output_width)*np.sin(turn_angle)
